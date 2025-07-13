@@ -1,6 +1,8 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -27,3 +29,16 @@ export default function RootLayout({ children }) {
     </html>
   );
 }
+
+// export const metadata = {
+//   title: 'Blackjack Game',
+//   description: 'Play blackjack in your browser',
+// }
+
+// export default function RootLayout({ children }) {
+//   return (
+//     <html lang="en">
+//       <body>{children}</body>
+//     </html>
+//   )
+// }

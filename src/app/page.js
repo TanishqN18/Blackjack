@@ -1,103 +1,207 @@
-import Image from "next/image";
+'use client';
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import Button from '../app/components/ui/button';
+import CardWrapper from '../app/components/ui/cardwrapper';
+import { toast } from 'sonner';
+import Image from 'next/image';
+
+const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
+const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'jack', 'queen', 'king', 'ace'];
+const deck = values.flatMap(value => suits.map(suit => `${value}_of_${suit}`));
+
+const cardValue = (card) => {
+  if (!card || card === 'back') return 0;
+  const val = card.split('_')[0];
+  if (['jack', 'queen', 'king'].includes(val)) return 10;
+  if (val === 'ace') return 11;
+  return parseInt(val);
+};
+
+const calculateScore = (cards) => {
+  let total = cards.reduce((sum, card) => sum + cardValue(card), 0);
+  let aces = cards.filter(c => typeof c === 'string' && c.startsWith('ace')).length;
+  while (total > 21 && aces) {
+    total -= 10;
+    aces--;
+  }
+  return total;
+};
+
+const playSound = (name) => {
+  const audio = new Audio(`/sounds/${name}.mp3`);
+  audio.play();
+};
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [userCards, setUserCards] = useState([]);
+  const [dealerCards, setDealerCards] = useState([]);
+  const [showDealer, setShowDealer] = useState(false);
+  const [result, setResult] = useState('');
+  const [status, setStatus] = useState('');
+  const [score, setScore] = useState({ wins: 0, losses: 0, draws: 0 });
+  const [gameOver, setGameOver] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const dealCard = () => deck[Math.floor(Math.random() * deck.length)];
+
+  const startGame = () => {
+    const player = [dealCard(), dealCard()];
+    const dealer = [dealCard(), dealCard()];
+    setUserCards(player);
+    setDealerCards([dealer[0], 'back']);
+    setShowDealer(false);
+    setResult('');
+    setStatus('');
+    setGameOver(false);
+    playSound('deal');
+  };
+
+  const hit = () => {
+    if (gameOver) return;
+    setStatus('Player hits...');
+    const newCards = [...userCards, dealCard()];
+    setUserCards(newCards);
+    playSound('click');
+    if (calculateScore(newCards) > 21) {
+      setStatus('Player busted! Dealer wins.');
+      stand();
+    }
+  };
+
+  const stand = () => {
+    if (gameOver) return;
+    setStatus("Player stands. Dealer's turn...");
+
+    let revealedDealer = [dealerCards[0]];
+    while (calculateScore(revealedDealer) < 17) {
+      revealedDealer.push(dealCard());
+      setDealerCards([...revealedDealer]); // update UI with animation
+      setStatus('Dealer draws another card...');
+    }
+
+    setShowDealer(true);
+
+    const userScore = calculateScore(userCards);
+    const dealerScore = calculateScore(revealedDealer);
+
+    let outcome = '';
+
+    if (userScore > 21) {
+      outcome = 'You went over. You lose 😭';
+      playSound('lose');
+    } else if (dealerScore > 21) {
+      outcome = 'Dealer busts! You win 😎';
+      playSound('win');
+    } else if (userScore > dealerScore) {
+      outcome = 'You win 🎉';
+      playSound('win');
+    } else if (userScore < dealerScore) {
+      outcome = 'Dealer wins 😤';
+      playSound('lose');
+    } else {
+      outcome = "It's a draw 🤝";
+      playSound('click');
+    }
+
+    setStatus('Dealer stands.');
+    setResult(outcome);
+    toast(outcome);
+
+    setScore(prev => ({
+      wins: outcome.includes('You win') ? prev.wins + 1 : prev.wins,
+      losses:
+        outcome.includes('You went over') || outcome.includes('Dealer wins')
+          ? prev.losses + 1
+          : prev.losses,
+      draws: outcome.includes('draw') ? prev.draws + 1 : prev.draws,
+    }));
+
+    setGameOver(true);
+  };
+
+  const renderCards = (cards, hidden = false) =>
+    cards.map((card, i) => (
+      <motion.img
+        key={i}
+        src={hidden && card === 'back' ? '/cards/back.png' : `/cards/${card}.png`}
+        alt={card}
+        className="w-20 h-auto rounded shadow"
+        initial={{ opacity: 0, x: -40 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: i * 0.15 }}
+      />
+    ));
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 space-y-6 bg-white text-black">
+    <motion.div
+      className="text-5xl font-extrabold tracking-wide bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent"
+      initial={{ opacity: 0, y: -30, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.8, type: 'spring' }}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+  >
+    🎴 Blackjack
+  </motion.div>
+
+
+      <div className="text-sm">
+        Wins: {score.wins} | Losses: {score.losses} | Draws: {score.draws}
+      </div>
+
+      <div className="flex gap-3 justify-center">
+        {!gameOver ? (
+          <>
+            <Button onClick={hit}>Hit</Button>
+            <Button onClick={stand}>Stand</Button>
+          </>
+        ) : (
+          <Button onClick={startGame}>Play Again</Button>
+        )}
+      </div>
+
+      {result && <p className="text-yellow-500 font-bold mt-3">{result}</p>}
+      {status && (
+        <motion.p
+          className="text-sm text-gray-600 italic"
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          {status}
+        </motion.p>
+      )}
+
+      {/* Dealer section with image */}
+      <div className="flex flex-col items-center gap-4 mt-4">
+        <motion.img
+          src="/ui/dealer.png"
+          alt="Dealer"
+          className="w-24 h-24 object-contain"
+          initial={{ y: -30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.4 }}
+        />
+        <div className="flex gap-2">
+          {showDealer ? renderCards(dealerCards) : renderCards(dealerCards, true)}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
+
+      {/* Player section with image */}
+      <div className="flex flex-col items-center gap-4 mt-4">
+        <motion.img
+          src="/ui/player.png"
+          alt="Player"
+          className="w-24 h-24 object-contain"
+          initial={{ y: 30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.4 }}
+        />
+        <div className="flex gap-2">
+          {renderCards(userCards)}
+        </div>
+      </div>
     </div>
   );
 }
